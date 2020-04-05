@@ -39,13 +39,13 @@ class Perceptron:
         node_counts - list of number; each index is a layer with the value being the number of nodes in said layer
         learning_rate - hyperparameter to control how much weights change during training
         """
-        assert(len(node_counts) >= 1 and callable(activation_func) and callable(derivative_func))
+        assert(len(node_counts) > 1 and callable(activation_func) and callable(derivative_func))
         self.activation_func = activation_func
         self.derivative_func = derivative_func
         self.node_counts = node_counts
         self.layers = len(node_counts)
         # Weights are x rows (input), y columns (output to next layer)
-        self.weights = [np.matrix(np.random.rand(x, y)) for x, y in pairwise(node_counts)]
+        self.weights = [np.matrix(np.random.uniform(-1, 1, (x+1, y))) for x, y in pairwise(node_counts)]
         self.learning_rate = learning_rate
         self.iterations = iterations
 
@@ -61,14 +61,17 @@ class Perceptron:
         for _ in range(self.iterations):
             for data in train_data.T:
                 actual = np.array(data[0])
-                column_vector = data[1:]
+                # Extra 1 is bias input
+                column_vector = np.append(np.array([1.0]), data[1:])
 
                 # Calc activations
                 activations[0] = column_vector
                 for i in range(1, self.layers):
                     # a_0 = x_0, a_i = g(w_i-1^T*x_i-1)
                     inputs = list(chain(*np.matrix.tolist(self.weights[i-1].T * np.r_["c", activations[i-1]])))
-                    activations[i] = np.array(list(map(self.activation_func, inputs)))
+                    # Each level has bias input of one
+                    activations[i] = np.append(np.array([1.0]), np.array(list(map(self.activation_func, inputs))))
+                activations[-1] = activations[-1][1:]
 
                 # Calc error
                 prediction = activations[-1]
@@ -78,10 +81,12 @@ class Perceptron:
                 # delta_j = Error_j * g'(in)
                 deltas[-1] = np.array([error[j] * self.derivative_func(activations[-2][j]) for j in range(len(activations[-1]))])
                 for delta_level in range(-2, -(len(deltas)+1), -1):
-                    deltas[delta_level] = np.zeros(self.node_counts[delta_level])
+                    deltas[delta_level] = np.zeros(self.node_counts[delta_level] + 1)
                     for i in range(len(deltas[delta_level])):
                         # delta_i = g'(in) * sum(w_i,j * delta_j)
-                        result = self.derivative_func(self.weights[delta_level].T[i] * np.r_["c", activations[delta_level-1]]) * \
+                        # Always input 1 for bias terms (always 1st input for each layer)
+                        input = np.array(self.weights[delta_level].T * np.r_["c", activations[delta_level-1]])[i-1] if i != 0 else 1
+                        result = self.derivative_func(input) * \
                             sum(self.weights[delta_level].item(i, j) * deltas[delta_level+1][j] for j in range(len(deltas[delta_level+1])))
                         deltas[delta_level][i] = result
 
@@ -103,9 +108,9 @@ class Perceptron:
 
         # Calc activations
         # Calc activations
-        activations[0] = input
+        activations[0] = np.append(np.array([1.0]), input)
         for i in range(1, self.layers):
             inputs = list(chain(*np.matrix.tolist(self.weights[i-1].T * np.r_["c", activations[i-1]])))
-            activations[i] = np.array(list(map(self.activation_func, inputs)))
+            activations[i] = np.append(np.array([1.0]), np.array(list(map(self.activation_func, inputs))))
 
-        return activations[-1]
+        return activations[-1][1:]

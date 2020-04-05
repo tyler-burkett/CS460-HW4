@@ -1,5 +1,6 @@
 import numpy as np
-from perceptron import Perceptron, ReLU, dReLU, Sigmoid
+import pandas as pd
+from perceptron import Perceptron, ReLU, dReLU, Sigmoid, dSigmoid
 
 
 def divide(start, divisor=2, iterations=float("inf")):
@@ -10,6 +11,15 @@ def divide(start, divisor=2, iterations=float("inf")):
         val = val // divisor
         iters = iters + 1
 
+def taper(start, power=2, iterations=float("inf")):
+    val = start
+    iters = 0
+    while val > 1 and iters < iterations:
+        yield val
+        val = int(val ** (1 / power))
+        iters = iters + 1
+
+
 
 if __name__ == "__main__":
 
@@ -18,8 +28,8 @@ if __name__ == "__main__":
     #test_data = train_data
     train_data = np.genfromtxt("./data/mnist_train_0_1.csv", dtype="float", delimiter=",").T
     test_data = np.genfromtxt("./data/mnist_test_0_1.csv", dtype="float", delimiter=",").T
-    node_levels = list(divide(len(train_data[1:, 0]), 4)) + [1]
-    nn = Perceptron(ReLU, dReLU, node_levels, 1*10**-10, 1000*5)
+    node_levels = [len(train_data[1:, 0]), 50, 1]
+    nn = Perceptron(ReLU, dReLU, node_levels, 1*10**-7, 1)
 
     nn.fit(train_data)
 
@@ -28,7 +38,7 @@ if __name__ == "__main__":
     for test_point in test_data.T:
         actual = test_point[0]
         input = test_point[1:]
-        prediction = int(nn.predict(input).item(0) >= 0.5)
+        prediction = round(nn.predict(input).item(0))
         print("Actual: {}, Prediction: {}".format(actual, prediction))
         if prediction == actual:
             num_correct = num_correct + 1
