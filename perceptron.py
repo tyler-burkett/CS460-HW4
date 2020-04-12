@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from itertools import tee, chain
-
+from statistics import mean
 
 def pairwise(i):
     """
@@ -17,12 +17,11 @@ def pairwise(i):
 def ReLU(x):
     return max(0, x)
 
-
 def dReLU(x):
     return 1 if x > 0 else 0
 
 def Sigmoid(x):
-    return 1 / (1 + math.exp(-x))
+    return math.exp(x) / (1 + math.exp(x))
 
 def dSigmoid(x):
     return Sigmoid(x)*(1 - Sigmoid(x))
@@ -57,7 +56,10 @@ class Perceptron:
         """
         activations = list(0 for i in range(self.layers))
         deltas = list(0 for i in range(self.layers - 1))
+        learning_rate = self.learning_rate
+
         # Assuming each instance is a column vector, with first index as label
+        prev_error = np.array([float("inf")])
         for _ in range(self.iterations):
             for data in train_data.T:
                 actual = np.array(data[0])
@@ -71,31 +73,31 @@ class Perceptron:
                     inputs = list(chain(*np.matrix.tolist(self.weights[i-1].T * np.r_["c", activations[i-1]])))
                     # Each level has bias input of one
                     activations[i] = np.append(np.array([1.0]), np.array(list(map(self.activation_func, inputs))))
-                activations[-1] = activations[-1][1:]
 
                 # Calc error
-                prediction = activations[-1]
+                prediction = activations[-1][1:]
                 error = actual - prediction
 
                 # Calc deltas
                 # delta_j = Error_j * g'(in)
-                deltas[-1] = np.array([error[j] * self.derivative_func(activations[-2][j]) for j in range(len(activations[-1]))])
+                deltas[-1] = np.array([error[j] * self.derivative_func(activations[-2][j+1]) for j in range(0, len(error))])
                 for delta_level in range(-2, -(len(deltas)+1), -1):
-                    deltas[delta_level] = np.zeros(self.node_counts[delta_level] + 1)
-                    for i in range(len(deltas[delta_level])):
-                        # delta_i = g'(in) * sum(w_i,j * delta_j)
-                        # Always input 1 for bias terms (always 1st input for each layer)
-                        input = np.array(self.weights[delta_level].T * np.r_["c", activations[delta_level-1]])[i-1] if i != 0 else 1
-                        result = self.derivative_func(input) * \
-                            sum(self.weights[delta_level].item(i, j) * deltas[delta_level+1][j] for j in range(len(deltas[delta_level+1])))
-                        deltas[delta_level][i] = result
+                    # delta_i = g'(in) * sum(w_i,j * delta_j) forall j
+                    inputs = list(chain(*np.array(self.weights[delta_level].T * np.r_["c", activations[delta_level-1]]).tolist()))
+                    weighted_sums = self.weights[delta_level+1] * np.r_["c", deltas[delta_level+1]]
+                    dg_in = np.r_["c", list(map(self.activation_func, inputs))]
+                    deltas[delta_level] = np.multiply(dg_in, weighted_sums[1:])
 
                 # Perform weight adjustments
-                for level, weights in enumerate(self.weights):
-                    for i in range(weights.shape[0]):
-                        for j in range(weights.shape[1]):
-                            #w_i,j = w_i,j + alpha * a_i * delta_j
-                            weights[i, j] = weights.item(i, j) + self.learning_rate * activations[level][i] * deltas[level][j]
+                for level in range(len(self.weights)):
+                    self.weights[level] = self.weights[level] + learning_rate * np.matrix(activations[level]).T * np.matrix(deltas[level]).T
+
+                if mean(error) < mean(prev_error):
+                    learning_rate = max(learning_rate / 2, 10**-10)
+                else:
+                    learning_rate = min(learning_rate * 2, 10**-1)
+
+                prev_error = error
 
     def predict(self, input):
         """
@@ -107,10 +109,13 @@ class Perceptron:
         activations = list(0 for i in range(self.layers))
 
         # Calc activations
-        # Calc activations
         activations[0] = np.append(np.array([1.0]), input)
         for i in range(1, self.layers):
             inputs = list(chain(*np.matrix.tolist(self.weights[i-1].T * np.r_["c", activations[i-1]])))
             activations[i] = np.append(np.array([1.0]), np.array(list(map(self.activation_func, inputs))))
 
         return activations[-1][1:]
+
+    def set_weights(self, weights):
+        assert all(weights[i].shape == self.weights[i].shape for i in range(len(self.weights)))
+        self.weights = weights
