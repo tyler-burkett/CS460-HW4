@@ -92,7 +92,7 @@ class Perceptron:
                 for level in range(len(self.weights)):
                     self.weights[level] = self.weights[level] + learning_rate * np.matrix(activations[level]).T * np.matrix(deltas[level]).T
 
-                if mean(error) < mean(prev_error):
+                if mean(error) > mean(prev_error):
                     learning_rate = max(learning_rate / 2, 10**-10)
                 else:
                     learning_rate = min(learning_rate * 2, 10**-1)
